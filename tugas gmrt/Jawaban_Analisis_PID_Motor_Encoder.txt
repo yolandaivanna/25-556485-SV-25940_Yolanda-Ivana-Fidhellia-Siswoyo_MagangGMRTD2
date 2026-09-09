@@ -1,0 +1,179 @@
+===========================================================
+ANALISIS SISTEM KENDALI KECEPATAN MOTOR ROBOT (PID CONTROL)
+Setpoint = 150 RPM | Kondisi awal = 0 RPM
+===========================================================
+
+-----------------------------------------------------------
+1. ANALISIS KONFIGURASI A (P Only: Kp = 5.0, Ki = 0, Kd = 0)
+-----------------------------------------------------------
+Fenomena yang terjadi: STEADY-STATE ERROR (galat keadaan tunak / offset).
+
+Penjelasan:
+Pada kontrol Proporsional murni, sinyal kendali (misalnya PWM ke driver
+motor) dihitung dengan rumus:
+
+    u(t) = Kp x e(t)      dengan e(t) = setpoint - kecepatan aktual
+
+Semakin kecil error, semakin kecil pula sinyal kendali yang dikirim ke
+motor. Namun motor membutuhkan sejumlah torsi/energi minimum untuk
+melawan beban nyata seperti gesekan (friction), gaya gravitasi pada
+roda, dan hambatan mekanis lain. Sistem akhirnya mencapai TITIK
+KESEIMBANGAN (equilibrium) ketika sinyal kendali Kp x e(t) yang
+dihasilkan oleh error yang tersisa (150 - 138 = 12 RPM) PERSIS cukup
+untuk menyeimbangkan beban gesekan tersebut. Setelah titik ini, error
+tidak lagi berkurang karena tidak ada mekanisme yang "mendorong" sinyal
+kendali menjadi lebih besar walau error konstan positif terus ada.
+
+Mengapa menambah Kp saja tidak menyelesaikan masalah:
+- Menaikkan Kp memang akan memperkecil error sisa (offset), karena untuk
+  error yang sama sinyal kendali menjadi lebih besar sehingga titik
+  keseimbangan baru bergeser mendekati 150 RPM.
+- TETAPI Kp yang terlalu besar akan membuat sistem sangat sensitif
+  terhadap error kecil, menimbulkan lonjakan (overshoot) dan osilasi,
+  bahkan berpotensi membuat sistem menjadi tidak stabil (unstable).
+- Secara matematis, kontrol P murni TIDAK PERNAH bisa menghilangkan
+  steady-state error sepenuhnya selama ada beban/gesekan nyata pada
+  sistem, karena begitu error = 0, sinyal kendali juga = 0 (motor
+  berhenti mendapat "dorongan"), padahal untuk mempertahankan kecepatan
+  tetap dibutuhkan torsi > 0. Oleh sebab itu dibutuhkan aksi INTEGRAL
+  (Ki) yang mampu terus "mengoreksi" berdasarkan akumulasi error dari
+  waktu ke waktu, bukan hanya nilai error saat ini.
+
+-----------------------------------------------------------
+2. ANALISIS KONFIGURASI B (PI: Kp = 5.0, Ki = 8.0, Kd = 0)
+-----------------------------------------------------------
+Fenomena yang terjadi: OVERSHOOT dan OSILASI akibat AKUMULASI GALAT
+(integral windup).
+
+Penjelasan mekanisme:
+Komponen integral dihitung sebagai:
+
+    I(t) = Ki x Integral[ e(t) dt ]   (akumulasi error dari waktu ke waktu)
+
+Pada awal pergerakan (dari 0 RPM menuju 150 RPM), error masih SANGAT
+BESAR dan bertahan besar dalam durasi yang cukup lama (karena motor
+butuh waktu untuk mempercepat). Selama periode ini, nilai integral terus
+"menumpuk" (terakumulasi) menjadi sangat besar, karena integral menjumlah
+seluruh error positif dari awal hingga saat itu.
+
+Akibatnya, ketika kecepatan aktual akhirnya mendekati atau bahkan
+menyentuh 150 RPM, komponen integral yang sudah terlanjur besar TIDAK
+langsung mengecil - ia butuh waktu untuk "meluruh" karena harus
+mengakumulasi error NEGATIF terlebih dahulu (saat kecepatan melebihi
+setpoint) agar nilainya berkurang. Karena sinyal kendali total
+u(t) = Kp.e(t) + Ki.Integral(e), sinyal kendali menjadi jauh lebih besar
+dari yang dibutuhkan, sehingga motor terus dipacu melebihi 150 RPM
+hingga mencapai 195 RPM (overshoot tinggi).
+
+Setelah overshoot, error menjadi negatif (kecepatan > setpoint), integral
+mulai berkurang, sinyal kendali turun drastis, kecepatan pun turun -
+namun karena proses akumulasi/peluruhan integral berulang beberapa kali
+sebelum benar-benar seimbang, muncullah OSILASI naik-turun sampai
+akhirnya sistem stabil di 150 RPM setelah 4 detik. Fenomena penumpukan
+error berlebih ini dikenal sebagai INTEGRAL WINDUP.
+
+-----------------------------------------------------------
+3. PERAN KONSTANTA DERIVATIVE (Kd) - KONFIGURASI C
+   (PID: Kp = 5.0, Ki = 8.0, Kd = 2.5)
+-----------------------------------------------------------
+Komponen derivative dihitung sebagai:
+
+    D(t) = Kd x [ de(t) / dt ]   (laju perubahan error terhadap waktu)
+
+Prinsip kerja:
+Berbeda dengan P (bereaksi terhadap besar error saat ini) dan I
+(bereaksi terhadap akumulasi error masa lalu), komponen D bereaksi
+terhadap KECEPATAN PERUBAHAN error - artinya D bersifat "prediktif"
+atau memberikan efek REDAMAN (damping):
+
+- Saat kecepatan motor naik dengan sangat cepat mendekati/melewati
+  setpoint, error e(t) berkurang dengan cepat, sehingga de/dt bernilai
+  NEGATIF besar. Ini membuat komponen D menghasilkan nilai NEGATIF yang
+  besar pula, sehingga MENGURANGI total sinyal kendali u(t) SEBELUM
+  kecepatan benar-benar overshoot.
+- Dengan kata lain, D "melihat" bahwa sistem sedang mendekati target
+  dengan sangat cepat dan secara otomatis "menginjak rem" lebih awal,
+  sehingga lonjakan (overshoot) yang tadinya bisa mencapai 195 RPM
+  ditekan menjadi hanya 154 RPM.
+- Efek redaman ini juga meredam osilasi, karena setiap kali kecepatan
+  perubahan error tinggi (baik naik maupun turun terlalu cepat), D akan
+  melawan arah perubahan tersebut, membuat respons sistem lebih halus
+  dan cepat mencapai kestabilan (settling time < 1 detik dibanding 4
+  detik pada Konfigurasi B).
+
+Kesimpulan: Kombinasi P (respons cepat terhadap error), I (menghilangkan
+steady-state error), dan D (meredam overshoot & osilasi) inilah yang
+membuat Konfigurasi C menghasilkan respons paling ideal: naik mulus,
+overshoot kecil, settling time singkat, dan akurat di setpoint.
+
+-----------------------------------------------------------
+4. KONDISI KHUSUS (TROUBLESHOOTING) - RODA DITAHAN HALANGAN
+-----------------------------------------------------------
+Skenario: Roda ditahan halangan fisik selama 5 detik (kecepatan aktual
+tetap 0 RPM) sementara PID aktif, lalu halangan dilepas mendadak.
+
+a) Fenomena berbahaya yang berpotensi terjadi: INTEGRAL WINDUP EKSTREM
+   yang memicu LONJAKAN KECEPATAN BERBAHAYA (severe overshoot / speed
+   spike).
+
+   Penjelasan:
+   Selama 5 detik roda tertahan, error tetap besar dan konstan
+   (150 - 0 = 150 RPM) tanpa pernah mengecil. Komponen integral akan
+   terus menjumlahkan error besar ini SETIAP SIKLUS KONTROL selama 5
+   detik penuh, sehingga nilai integral membengkak jauh melebihi kondisi
+   normal (integral saturation / windup). Sinyal kendali (PWM) pun akan
+   ter-saturasi ke nilai maksimum motor terus-menerus mencoba melawan
+   halangan dengan daya penuh.
+
+   Begitu halangan dilepas secara mendadak, motor akan langsung
+   menerima sinyal kendali yang SANGAT BESAR (akumulasi integral yang
+   sudah menumpuk selama 5 detik + komponen P dan D), menyebabkan roda
+   berputar dengan akselerasi dan kecepatan yang jauh melebihi 150 RPM
+   secara tiba-tiba (violent overshoot). Ini berbahaya karena dapat:
+   - Merusak komponen mekanik (gear, roda, bearing) akibat hentakan
+     torsi tiba-tiba,
+   - Menyebabkan robot melesat tak terkendali secara fisik,
+   - Membebani motor/driver secara elektrik (arus lonjak/overcurrent).
+
+b) Strategi perangkat lunak (software) untuk mencegah hal ini:
+   ANTI-WINDUP PROTECTION, di antaranya dapat berupa:
+
+   1. Integral Clamping (Saturation Limit):
+      Membatasi nilai maksimum dan minimum dari akumulasi integral
+      (Integral_min <= I <= Integral_max), sehingga walau error besar
+      bertahan lama, nilai integral tidak bisa membengkak tanpa batas.
+
+   2. Conditional Integration / Clamping Anti-Windup:
+      Integral HANYA diperbarui (di-akumulasi) jika sinyal kendali
+      output belum mencapai batas saturasi (misal PWM belum 100%) ATAU
+      jika arah error sejalan dengan arah yang masih memungkinkan
+      koreksi. Jika output sudah saturasi, proses integrasi dihentikan
+      sementara (freeze) sampai kondisi normal kembali.
+
+   3. Back-Calculation Method:
+      Jika terjadi saturasi output, selisih antara sinyal kendali yang
+      diinginkan dan sinyal aktual yang benar-benar dikirim (setelah
+      dibatasi) dipakai untuk "menarik kembali" (mengurangi) nilai
+      integral secara proporsional, sehingga integral tidak terus
+      menumpuk selama saturasi berlangsung.
+
+   4. Reset Integral saat Kondisi Khusus Terdeteksi:
+      Menambahkan logika pada firmware untuk mendeteksi kondisi stall
+      (kecepatan aktual = 0 RPM dalam waktu lama padahal sinyal kendali
+      sudah maksimum) sebagai indikasi roda tertahan/macet, lalu me-reset
+      atau membekukan nilai integral secara otomatis sampai kondisi
+      normal terdeteksi kembali.
+
+   5. Rate Limiter / Slew Rate Limiting pada Output:
+      Membatasi seberapa cepat sinyal kendali (atau setpoint kecepatan)
+      boleh berubah per satuan waktu, sehingga walau ada lonjakan sinyal
+      kendali akibat windup, kenaikan kecepatan motor tetap dibatasi
+      secara bertahap (tidak melonjak instan) untuk melindungi mekanik
+      dan elektronik.
+
+   Kombinasi metode Integral Clamping + Conditional Integration adalah
+   pendekatan yang paling umum diimplementasikan pada mikrokontroler
+   karena ringan secara komputasi dan efektif mencegah bahaya lonjakan
+   kecepatan mendadak (sudden speed spike) pasca-stall.
+
+===========================================================
