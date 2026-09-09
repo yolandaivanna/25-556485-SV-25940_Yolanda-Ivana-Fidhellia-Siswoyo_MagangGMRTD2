@@ -17,9 +17,9 @@ RINGKASAN DESKRIPSI TUGAS  :
 - PID
   Isi tugas ini ngebahas 3 percobaan tuning PID buat kontrol kecepatan motor robot pake optical encoder, target 150 RPM.
  
-Konfigurasi A (P doang) -> mentok di 138 RPM, nggak pernah nyampe target.
-Konfigurasi B (PI) -> overshoot sampe 195 RPM, osilasi, baru stabil di detik ke-4.
-Konfigurasi C (PID lengkap) -> naik mulus, overshoot dikit (154 RPM), stabil di bawah 1 detik.
- 
-Ada juga bagian troubleshooting soal apa yang kejadian kalau roda ditahan halangan 5 detik terus dilepas mendadak 
-(integral windup -> lonjakan kecepatan berbahaya), sama solusinya pake anti-windup di software.
+  Konfigurasi A (P doang) -> mentok di 138 RPM, nggak pernah nyampe target.
+  Konfigurasi B (PI) -> overshoot sampe 195 RPM, osilasi, baru stabil di detik ke-4.
+  Konfigurasi C (PID lengkap) -> naik mulus, overshoot dikit (154 RPM), stabil di bawah 1 detik.
+   
+  Ada juga bagian troubleshooting soal apa yang kejadian kalau roda ditahan halangan 5 detik terus dilepas mendadak 
+  (integral windup -> lonjakan kecepatan berbahaya), sama solusinya pake anti-windup di software.
